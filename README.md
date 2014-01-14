@@ -1,8 +1,6 @@
 ## VDC-Store - caching storage infrastructure
 This module provides an interface to VDC-Store which is an alternative storage infrastructure for OpenNebula. It provides a shared platform with support for local SSD caching, replication, live migration, snapshots and compression.
-
 ## Development
-
 To contribute bug patches or new features, you can use the github Pull Request model. It is assumed that code and documentation are contributed under the Apache License 2.0. 
 
 More info:
@@ -17,7 +15,7 @@ More info:
 
 ## Compatibility
 
-This add-on is compatible with OpenNebula x.y.
+This add-on is compatible with OpenNebula 4.4
 
 ## Features
 
