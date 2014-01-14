@@ -1,4 +1,4 @@
-# VDC-Store - Caching storage infrastructure
+# Caching storage infrastructure
 ## Description
 Storage for virtual machines providing a shared platform with support for caching, replication, live migration, snapshots and compression.
 
