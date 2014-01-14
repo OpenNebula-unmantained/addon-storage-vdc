@@ -1,0 +1,83 @@
+#!/bin/bash
+# -------------------------------------------------------------------------- #
+# Copyright 2013, Gareth Bult <gareth@linux.co.uk>                           #
+#                                                                            #
+# Licensed under the Apache License, Version 2.0 (the "License"); you may    #
+# not use this file except in compliance with the License. You may obtain    #
+# a copy of the License at                                                   #
+#                                                                             #
+# http://www.apache.org/licenses/LICENSE-2.0                                 #
+#                                                                            #
+# Unless required by applicable law or agreed to in writing, software        #
+# distributed under the License is distributed on an "AS IS" BASIS,          #
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.   #
+# See the License for the specific language governing permissions and        #
+# limitations under the License.                                             #
+#--------------------------------------------------------------------------- #
+ROOT=$(dirname $(dirname $(dirname $0)))
+source ${ROOT}/hooks/vdc/common.sh
+vdc_log "=> CLONE ($1) ($2) ($3) ($4)"
+
+SRC=$1
+DST=$2
+VMID=$3
+DSID=$4
+
+SRC_PATH=`arg_path $SRC`
+DST_PATH=`arg_path $DST`
+DST_HOST=`arg_host $DST`
+DST_DIR=`dirname $DST_PATH`
+BASE_PATH=`dirname $SRC_PATH`
+DST_DIR="${BASE_PATH}/`vdc_image_hash`"
+DST_BASE=`dirname $DST_PATH`
+
+#CACHE_SIZE="none"
+#CACHE_LVM="none"
+#DS_NAME="none"
+
+tool="${ROOT}/hooks/vdc/tool.py"
+conf="${ROOT}/hooks/vdc/mkconfig.py"
+vdc="${ROOT}/../vdc-nebula/remotes/binaries"
+
+#conf="${ROOT}/hooks/vdc/mkconfig.py"
+#gids="${ROOT}/hooks/vdc/get_image_ids.py"
+
+#eval `${gids} $VMID`
+#vdc_log "Running CLONE with DST_DIR=${DST_DIR} VMID=$VMID DSID=$DSID SRC=$1 DST=$2"
+#vdc_log "STORE=${STORE} CACHE=${CACHE}"
+
+vdc_log "${tool} env ${VMID} ${DSID} ${DST_HOST} ${SRC}"
+vdc_log "`${tool} env ${VMID} ${DSID} ${DST_HOST} ${SRC}`"
+eval `${tool} env ${VMID} ${DSID} ${DST_HOST} ${SRC}`
+
+vdctool="sudo $vdc/vdc-tool -n ${CACHE} "
+vdcstore="sudo /bin/bash -c 'ulimit -c unlimited && exec $vdc/vdc-store -n ${CACHE}'"
+
+#eval `${tool} ln $VMID $DSID $DST_HOST`
+
+vdc_log "${tool} add ${STORE} ${DST_DIR} ${DS_NAME} ${CAPACITY}"
+${tool} add ${STORE} ${DST_DIR} ${DS_NAME} ${CAPACITY}
+
+#vdc_log "${tool} add ${IMID} ${DST_DIR} ${CAPACITY} ${DS_NAME}"
+#${tool} add ${IMID} ${DST_DIR} ${CAPACITY} ${DS_NAME}
+
+ssh_make_path $DS_NAME $BASE_PATH
+vdc_make_path $DS_NAME $DST_DIR
+
+case $SRC in
+http://*)
+    log "Downloading $SRC"
+    RMT_CMD="$WGET -O $DST_DIR $SRC"
+    execute $DS_NAME "$RMT_CMD" "Error downloading $SRC"
+    ;;
+*)
+    log "Cloning $SRC in $DST_DIR"
+    execute ${DS_NAME} "sudo cp -r $SRC_PATH/* $DST_DIR/ 2>/tmp/errlog" "Error copying $SRC_PATH to $DST_DIR"
+    ;;
+esac
+
+execute ${DS_NAME} "sudo ${conf}" "Error Updating VDC Server Config"
+execute $DST_HOST "$vdctool --create -c${CACHE_SIZE} --nonpersist lvm:${CACHE_LVM}/${CACHE} vdc:${DS_NAME}/${STORE}" "Error creating Cache"
+execute $DST_HOST "$vdcstore" "Error starting VDC"
+execute $DST_HOST "mkdir ${DST_BASE}; ln -s /dev/vdc/mapper/${CACHE} ${DST_PATH}" "Error linking ${DST_PATH} to /dev/vdc/mapper/${CACHE}" "Error linking ${DST_PATH} to /dev/vdc/mapper/${CACHE}"
+exit 0

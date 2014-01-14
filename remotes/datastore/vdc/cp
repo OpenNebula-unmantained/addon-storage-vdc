@@ -1,0 +1,96 @@
+#!/bin/bash
+# -------------------------------------------------------------------------- #
+# Copyright 2013, Gareth Bult <gareth@linux.co.uk>                           #
+#                                                                            #
+# Licensed under the Apache License, Version 2.0 (the "License"); you may    #
+# not use this file except in compliance with the License. You may obtain    #
+# a copy of the License at                                                   #
+#                                                                            #
+# http://www.apache.org/licenses/LICENSE-2.0                                 #
+#                                                                            #
+# Unless required by applicable law or agreed to in writing, software        #
+# distributed under the License is distributed on an "AS IS" BASIS,          #
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.   #
+# See the License for the specific language governing permissions and        #
+# limitations under the License.                                             #
+#--------------------------------------------------------------------------- #
+ROOT=$(dirname $(dirname $(dirname $0)))
+source ${ROOT}/hooks/vdc/common.sh
+
+vdc_log "=> CP ($2)"
+conf="${ROOT}/hooks/vdc/mkconfig.py"
+
+while IFS= read -r -d '' element; do
+    XPATH_ELEMENTS[i++]="$element"
+done < <($XPATH     /DS_DRIVER_ACTION_DATA/DATASTORE/BASE_PATH \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/RESTRICTED_DIRS \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/SAFE_DIRS \
+                    /DS_DRIVER_ACTION_DATA/IMAGE/PATH \
+                    /DS_DRIVER_ACTION_DATA/IMAGE/TEMPLATE/MD5 \
+                    /DS_DRIVER_ACTION_DATA/IMAGE/TEMPLATE/SHA1 \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/NO_DECOMPRESS \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/LIMIT_TRANSFER_BW\
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/NAME \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/MOUNTPOINT\
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/ID)
+
+BASE_PATH="${XPATH_ELEMENTS[0]}"
+RESTRICTED_DIRS="${XPATH_ELEMENTS[1]}"
+SAFE_DIRS="${XPATH_ELEMENTS[2]}"
+SRC="${XPATH_ELEMENTS[3]}"
+MD5="${XPATH_ELEMENTS[4]}"
+SHA1="${XPATH_ELEMENTS[5]}"
+NO_DECOMPRESS="${XPATH_ELEMENTS[6]}"
+LIMIT_TRANSFER_BW="${XPATH_ELEMENTS[7]}"
+DST_HOST="${XPATH_ELEMENTS[8]}"
+MOUNTPOINT="${XPATH_ELEMENTS[9]}"
+DS_ID="${XPATH_ELEMENTS[10]}"
+ID=$2
+
+DS=$(dirname $BASE_PATH)
+set_up_datastore "$BASE_PATH" "$RESTRICTED_DIRS" "$SAFE_DIRS"
+DST=`generate_image_path`
+
+if [ ! -h ${DS}/${DS_ID} ] ; then
+    path="${MOUNTPOINT}/datastores/${DS_ID}"
+    execute $DST_HOST "mkdir -p ${path}" "Error creating directory ${path}"
+    execute $DST_HOST "ln -s ${path} ${DS}/${DS_ID}" "Unable to create link to ${path}"
+fi
+#execute ${DST_HOST} ${conf} "Error Updating VDC Server Config"
+execute ${DST_HOST} "mkdir -p $DST" "Error creating directory $DST"
+
+if [ "$SRC" == "REPLICA" ] ; then
+    echo "$DST"
+    exit 0
+fi
+
+DOWNLOADER_ARGS=`set_downloader_args "$MD5" "$SHA1" "$NO_DECOMPRESS" "$LIMIT_TRANSFER_BW" "$SRC" "$DST/Image.img"`
+DRIVER_PATH=$(dirname $0)
+vdc_log "$DRIVER_PATH/downloader.sh $DOWNLOADER_ARGS"
+COPY_COMMAND="$DRIVER_PATH/downloader.sh $DOWNLOADER_ARGS"
+
+vdc_log "* copying from {$SRC} to {$DST} on host {$DST_HOST}"
+
+case $SRC in
+http://*|https://*)
+    execute $DST_HOST "$COPY_COMMAND" "Error downloading $SRC"
+    ;;
+*)
+    if [ `check_restricted $SRC` -eq 1 ]; then
+        log_error "Not allowed to copy images from $RESTRICTED_DIRS"
+        vdc_log "* Error -> Not allowed to copy image file $SRC"
+        exit -1
+    fi
+    if [ ! -G "${SRC}" ] ; then
+        vdc_log "File (${SRC}) owner/group needs to be 'oneadmin'"
+        log "File (${SRC}) owner/group needs to be 'oneadmin'"
+        exit 1
+    fi
+    log "Copying local image $SRC to the image repository"
+    execute $DST_HOST "$COPY_COMMAND" "Error copying $SRC to $DST"
+    ;;
+esac
+vdc_log "* copy is complete ($SRC -> $DST)"
+#execute ${DST_HOST} ${conf} "Error Updating VDC Server Config"
+echo "$DST"
+exit 0

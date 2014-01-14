@@ -1,0 +1,51 @@
+#!/bin/bash
+# -------------------------------------------------------------------------- #
+# Copyright 2013, Gareth Bult <gareth@linux.co.uk>                           #
+#                                                                            #
+# Licensed under the Apache License, Version 2.0 (the "License"); you may    #
+# not use this file except in compliance with the License. You may obtain    #
+# a copy of the License at                                                   #
+#                                                                            #
+# http://www.apache.org/licenses/LICENSE-2.0                                 #
+#                                                                            #
+# Unless required by applicable law or agreed to in writing, software        #
+# distributed under the License is distributed on an "AS IS" BASIS,          #
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.   #
+# See the License for the specific language governing permissions and        #
+# limitations under the License.                                             #
+#--------------------------------------------------------------------------- #
+ROOT=$(dirname $(dirname $(dirname $0)))
+source ${ROOT}/hooks/vdc/common.sh
+vdc_log "DS STAT :: ID=$2"
+
+while IFS= read -r -d '' element; do
+    XPATH_ELEMENTS[i++]="$element"
+done < <($XPATH /DS_DRIVER_ACTION_DATA/IMAGE/PATH \
+                /DS_DRIVER_ACTION_DATA/DATASTORE/NAME)
+
+SRC="${XPATH_ELEMENTS[0]}"
+DST="${XPATH_ELEMENTS[1]}"
+
+vdc_log "* executing -> fs_size $SRC"
+
+function file_size {
+  stat --version &> /dev/null
+  if [ $? = 0 ]; then
+      # Linux
+      STAT_CMD="stat -c %s"
+  else
+      # Darwin
+      STAT_CMD="stat -f %z"
+  fi
+  logger -t vdc-nebula '$STAT_CMD "$*"'
+  ssh_exec_and_log $1 '$STAT_CMD "$2"' "Error calling function to calculate size"
+}
+
+#siz=`blockdev --getsz $SRC`
+
+siz=`fs_size $SRC`
+vdc_log "* device size -> $siz"
+echo $siz
+
+#expr $siz \/ 2 \/ 1024
+exit 0

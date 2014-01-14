@@ -1,0 +1,67 @@
+#!/bin/bash
+# -------------------------------------------------------------------------- #
+# Copyright 2013, Gareth Bult <gareth@linux.co.uk>                           #
+#                                                                            #
+# Licensed under the Apache License, Version 2.0 (the "License"); you may    #
+# not use this file except in compliance with the License. You may obtain    #
+# a copy of the License at                                                   #
+#                                                                            #
+# http://www.apache.org/licenses/LICENSE-2.0                                 #
+#                                                                            #
+# Unless required by applicable law or agreed to in writing, software        #
+# distributed under the License is distributed on an "AS IS" BASIS,          #
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.   #
+# See the License for the specific language governing permissions and        #
+# limitations under the License.                                             #
+#--------------------------------------------------------------------------- #
+ROOT=$(dirname $(dirname $(dirname $0)))
+source ${ROOT}/hooks/vdc/common.sh
+tool="${ROOT}/hooks/vdc/tool.py"
+
+echo "$1" > /tmp/xml2
+
+vdc_log "MKFS ($VMID)"
+
+unset i j XPATH_ELEMENTS
+while IFS= read -r -d '' element; do
+    XPATH_ELEMENTS[i++]="$element"
+done < <($XPATH     /DS_DRIVER_ACTION_DATA/DATASTORE/BASE_PATH \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/RESTRICTED_DIRS \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/SAFE_DIRS \
+                    /DS_DRIVER_ACTION_DATA/IMAGE/TEMPLATE/SAVED_DISK_ID \
+                    /DS_DRIVER_ACTION_DATA/IMAGE/TEMPLATE/SAVE_AS_HOT \
+                    /DS_DRIVER_ACTION_DATA/IMAGE/TEMPLATE/PERSISTENT \
+                    /DS_DRIVER_ACTION_DATA/IMAGE/TEMPLATE/SAVED_VM_ID \
+                    /DS_DRIVER_ACTION_DATA/IMAGE/TEMPLATE/SAVED_IMAGE_ID )
+
+BASE_PATH="${XPATH_ELEMENTS[j++]}"
+RESTRICTED_DIRS="${XPATH_ELEMENTS[j++]}"
+SAFE_DIRS="${XPATH_ELEMENTS[j++]}"
+DISK_ID="${XPATH_ELEMENTS[j++]}"
+HOT="${XPATH_ELEMENTS[j++]}"
+PERSISTENT="${XPATH_ELEMENTS[j++]}"
+VMID="${XPATH_ELEMENTS[j++]}"
+IMAGE_ID="${XPATH_ELEMENTS[j++]}"
+
+vdc_log "HOT=${HOT} PERSISTENT=${PERSISTENT}"
+
+if [ -z "${HOT}" -a -z "${PERSISTENT}" ]
+then
+    vdc_log "Processing as non-persistent / DEFERRED"
+
+    NAME="ON_${IMAGE_ID}_${VMID}"
+    eval `${tool} getpath ${NAME}`
+    vdc_log "NAME=${NAME} :: PATH=${IM_PATH}"
+
+    echo ${IM_PATH}
+    exit 0
+fi
+
+vdc_log "As a copy to a new path"
+
+DS=$(dirname $BASE_PATH)
+set_up_datastore "$BASE_PATH" "$RESTRICTED_DIRS" "$SAFE_DIRS"
+DST=`generate_image_path`
+
+vdc_log "MKFS: Persistant image -> $DST, DISK ID was $DISK_ID"
+echo $DST

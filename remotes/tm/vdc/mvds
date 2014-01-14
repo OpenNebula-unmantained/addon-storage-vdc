@@ -1,0 +1,69 @@
+#!/bin/bash
+# -------------------------------------------------------------------------- #
+# Copyright 2013, Gareth Bult <gareth@linux.co.uk>                           #
+#                                                                            #
+# Licensed under the Apache License, Version 2.0 (the "License"); you may    #
+# not use this file except in compliance with the License. You may obtain    #
+# a copy of the License at                                                   #
+#                                                                            #
+# http://www.apache.org/licenses/LICENSE-2.0                                 #
+#                                                                            #
+# Unless required by applicable law or agreed to in writing, software        #
+# distributed under the License is distributed on an "AS IS" BASIS,          #
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.   #
+# See the License for the specific language governing permissions and        #
+# limitations under the License.                                             #
+#--------------------------------------------------------------------------- #
+ROOT=$(dirname $(dirname $(dirname $0)))
+source ${ROOT}/hooks/vdc/common.sh
+vdc_log "=>MVDS ($1) ($2) ($3) $(4)"
+
+SRC=$1
+DST=$2
+VMID=$3
+DSID=$4
+
+tool="${ROOT}/hooks/vdc/tool.py"
+vdc="${ROOT}/../vdc-nebula/remotes/binaries"
+vdctool="$vdc/vdc-tool"
+vdcstore="$vdc/vdc-store"
+
+DST_HOST=`arg_host $SRC`
+DISK_ID=`echo ${SRC} | awk -F. '{print $NF}'`
+
+if [ ${DISK_ID} == "0" ]
+then
+    vdc_log "${tool} env ${VMID} ${DSID} ${DST_HOST} ''"
+    vdc_log "`${tool} env ${VMID} ${DSID} ${DST_HOST} ''`"
+    eval `${tool} env ${VMID} ${DSID} ${DST_HOST} ''`
+    CACHE_PATH="/dev/${CACHE_LVM}"
+
+    execute $DST_HOST "sudo $vdctool -n ${CACHE} --stop" "Error stopping Cache"
+    execute $DST_HOST "sudo lvremove -f ${CACHE_PATH}/${CACHE}" "Error removing Cache LVM"
+else
+    vdc_log "* Secondary disk [${DISK_ID}] - nothing to do"
+fi
+exit 0
+
+
+
+
+
+#conf="${ROOT}/hooks/vdc/mkconfig.py"
+#gids="${ROOT}/hooks/vdc/get_image_ids.py"
+#eval `${gids} $VMID`
+#CACHE_SIZE="none"
+#CACHE_LVM="none"
+#DS_NAME="none"
+#vdc_log "${tool} ln $VMID $DSID $DST_HOST"
+#eval `${tool} ln $VMID $DSID $DST_HOST`
+
+#if [ ! -z "${IM_PATH}" ]
+#then
+#        vdc_log "-> NON-Persistent image, removing data"
+#        execute $DS_NAME "sudo rm -rf ${IM_PATH}/Snapshots.ldb" "Error removing snapshots DB"
+#        execute $DS_NAME "sudo rm -f  ${IM_PATH}/Image.img" "Error removing main image"
+#        execute $DS_NAME "sudo rmdir ${IM_PATH}" "Error removing directory"
+#else
+#        vdc_log "-> Persistent image, data left undisturbed"
+#fi

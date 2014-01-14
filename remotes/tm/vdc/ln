@@ -1,0 +1,92 @@
+#!/bin/bash
+# -------------------------------------------------------------------------- #
+# Copyright 2013, Gareth Bult <gareth@linux.co.uk>                           #
+#                                                                            #
+# Licensed under the Apache License, Version 2.0 (the "License"); you may    #
+# not use this file except in compliance with the License. You may obtain    #
+# a copy of the License at                                                   #
+#                                                                            #
+# http://www.apache.org/licenses/LICENSE-2.0                                 #
+#                                                                            #
+# Unless required by applicable law or agreed to in writing, software        #
+# distributed under the License is distributed on an "AS IS" BASIS,          #
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.   #
+# See the License for the specific language governing permissions and        #
+# limitations under the License.                                             #
+#--------------------------------------------------------------------------- #
+ROOT=$(dirname $(dirname $(dirname $0)))
+source ${ROOT}/hooks/vdc/common.sh
+
+SRC=$1
+DST=$2
+VMID=$3
+DSID=$4
+
+tool="${ROOT}/hooks/vdc/tool.py"
+vdc="${ROOT}/../vdc-nebula/remotes/binaries"
+conf="${ROOT}/hooks/vdc/mkconfig.py"
+vdctool="$vdc/vdc-tool"
+
+vdc_log "=> LN ($1) ($2) ($3) ($4)"
+
+DST_PATH=`arg_path $DST`
+DST_HOST=`arg_host $DST`
+DST_DIR=`dirname $DST_PATH`
+
+vdc_log "${tool} env ${VMID} ${DSID} ${DST_HOST} ${SRC}"
+vdc_log "=> `${tool} env ${VMID} ${DSID} ${DST_HOST} ${SRC}`"
+eval `${tool} env ${VMID} ${DSID} ${DST_HOST} ${SRC}`
+
+vdcstore="sudo /bin/bash -c 'ulimit -c unlimited && exec $vdc/vdc-store -n ${CACHE}'"
+
+vdc_log "Make Path ($DST_HOST) ($DST_DIR)"
+ssh_make_path $DST_HOST $DST_DIR
+
+#if [ "${IS_REPLICA}" == "YES" ] ; then
+#    execute ${DS_NAME} ${conf} "Error Updating VDC Server Config"
+#    execute $DST_HOST "sudo $vdctool -n ${CACHE} --add vdc:${DS_NAME}/${STORE}" "Error adding replica"
+#    vdc_log "Exit code was: ($?)"
+#    exit $?
+#fi
+
+execute ${DS_NAME} "sudo ${conf}" "Error Updating VDC Server Config"
+
+vdc_log "* REPLICA_ID is (${REPLICA_ID})"
+
+execute $DST_HOST "sudo $vdctool -n  ${CACHE} --create -c${CACHE_SIZE} --nonpersist lvm:${CACHE_LVM}/${CACHE} vdc:${DS_NAME}/${STORE}" "Error creating Cache"
+execute $DST_HOST "$vdcstore" "Error starting VDC"
+execute $DST_HOST "cd ${DST_DIR}; rm -f ${DST_PATH}; ln -s /dev/vdc/mapper/${CACHE} ${DST_PATH}" "Error linking ${DST_PATH} to /dev/vdc/mapper/${CACHE}" "Error linking ${DST_PATH} to /dev/vdc/mapper/${CACHE}"
+
+if [ ! "${REPLICA_ID}" == "none" ]
+then
+    execute ${REPLICA_DS} "sudo ${conf}" "Error Updating VDC Server Config"
+    execute $DST_HOST "sudo $vdctool -n ${CACHE} --add vdc:${REPLICA_DS}/${REPLICA_STORE}" "Error adding replica"
+fi
+
+exit 0
+
+
+
+
+#SRC_ARG_PATH=`arg_path $SRC`
+#DST_DS_PATH="$(dirname $(dirname $(dirname $DST_PATH)))"
+#SRC_DS_PATH="$(dirname $(dirname $SRC_ARG_PATH))"
+#SRC_PATH="${DST_DS_PATH}${SRC_ARG_PATH##$SRC_DS_PATH}"
+#vdc_log "${gids} $VMID ${SRC_PATH}"
+#${gids} $VMID "${SRC_PATH}" > /tmp/debug 2>&1
+#eval `${gids} $VMID "${SRC_PATH}"`
+#vdc_log "Set NAME to ${CACHE} for $VMID"
+#vdc_log "Set IGNORE to $IGNORE for $VMID"
+#vdc_log `${gids} $VMID`
+#conf="${ROOT}/hooks/vdc/mkconfig.py"
+#gids="${ROOT}/hooks/vdc/get_image_ids.py"
+#CACHE_SIZE="none"
+#CACHE_LVM="none"
+#DS_NAME="none"
+#REPLICA_ID="none"
+
+#vdc_log "${tool} ln $VMID $DSID $DST_HOST"
+#vdc_log "[`${tool} ln $VMID $DSID $DST_HOST`]"
+#eval `${tool} ln $VMID $DSID $DST_HOST`
+
+#execute ${DS_NAME} ${conf} "Error Updating VDC Server Config"
