@@ -1,3 +1,5 @@
-Release Candidate # 2 - 14 Jan 2014
-===================================
+Release Candidate # 3 - working
+===============================
+
+a. Working on client side decompression
 
