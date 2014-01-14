@@ -47,8 +47,8 @@ This add-on is compatible with OpenNebula 4.4
 
 ## Requirements
 
-* Server hosts need to be running 3.2+ kernels (Ubuntu 13.04+)
-* KVM needs to be relatively recent if you want to use TRIM in VM hosts
+* Server hosts need to be running a kernel that supports FALLOCATE
+* KVM needs to be relatively recent (3.2+)
 
 ## Installation
 
