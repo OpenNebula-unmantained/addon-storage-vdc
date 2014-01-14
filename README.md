@@ -1,6 +1,5 @@
-# Caching storage infrastructure
-## Description
-Storage for virtual machines providing a shared platform with support for caching, replication, live migration, snapshots and compression.
+## VDC-Store - caching storage infrastructure
+This module provides an interface to VDC-Store which is an alternative storage infrastructure for OpenNebula. It provides a shared platform with support for local SSD caching, replication, live migration, snapshots and compression.
 
 ## Development
 
